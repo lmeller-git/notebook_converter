@@ -58,16 +58,25 @@ fn parse_file(f: &Path) -> Result<NoteBook> {
     Ok(serde_json::from_reader(f)?)
 }
 
+fn is_printout(line: &str) -> bool {
+    for c in line.trim().trim_start().chars() {
+        if !c.is_alphabetic() {
+            return false;
+        }
+    }
+    true
+}
+
 fn write_content(book: &NoteBook, target: &Path) -> Result<()> {
     if !target.is_dir() {
         fs::create_dir(target)?;
     } else {
-        fs::File::create_new(target.join(format!(
+        fs::File::create(target.join(format!(
             "content{}",
             book.metadata.language_info.file_extension
         )))?;
-        fs::File::create_new(target.join("content.md"))?;
-        fs::File::create_new(target.join("unknown.txt"))?;
+        fs::File::create(target.join("content.md"))?;
+        fs::File::create(target.join("unknown.txt"))?;
     }
     println!("created dir {}", target.display());
     for c in &book.contents {
@@ -83,8 +92,11 @@ fn write_content(book: &NoteBook, target: &Path) -> Result<()> {
                         )))?;
 
                 for line in &c.content {
-                    handle.write_all(line.as_bytes())?;
-                    handle.write_all(b"\n")?;
+                    if book.metadata.language_info.name == "python" && is_printout(line) {
+                        handle.write_all(format!("print(\"{0} = \", {0})", line).as_bytes())?;
+                    } else {
+                        handle.write_all(line.as_bytes())?;
+                    }
                 }
             }
             "markdown" => {
@@ -118,7 +130,7 @@ fn main() {
     let args = Args::parse();
     let content = match parse_file(&args.file) {
         Ok(c) => c,
-        Err(e) => {
+        Err(_e) => {
             println!("err");
             return;
         }
