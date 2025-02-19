@@ -59,7 +59,11 @@ fn parse_file(f: &Path) -> Result<NoteBook> {
 }
 
 fn is_printout(line: &str) -> bool {
-    for c in line.trim().trim_start().chars() {
+    let line = line.trim().trim_start();
+    if line.is_empty() {
+        return false;
+    }
+    for c in line.chars() {
         if !c.is_alphabetic() {
             return false;
         }
@@ -93,9 +97,10 @@ fn write_content(book: &NoteBook, target: &Path) -> Result<()> {
 
                 for line in &c.content {
                     if book.metadata.language_info.name == "python" && is_printout(line) {
-                        handle.write_all(format!("print(\"{0} = \", {0})", line).as_bytes())?;
+                        handle.write_all(format!("print(\"{0} = \", {0})\n", line).as_bytes())?;
                     } else {
                         handle.write_all(line.as_bytes())?;
+                        handle.write_all(b"\n")?;
                     }
                 }
             }
