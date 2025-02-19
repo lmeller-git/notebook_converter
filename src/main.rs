@@ -71,6 +71,18 @@ fn is_printout(line: &str) -> bool {
     true
 }
 
+fn is_shell_code_cell(block: &[String]) -> bool {
+    block
+        .first()
+        .unwrap_or(&"".to_string())
+        .trim()
+        .starts_with("%%")
+}
+
+fn is_shell_code(line: &str) -> bool {
+    line.trim().starts_with('!') || line.trim().starts_with('%')
+}
+
 fn write_content(book: &NoteBook, target: &Path) -> Result<()> {
     if !target.is_dir() {
         fs::create_dir(target)?;
@@ -81,22 +93,47 @@ fn write_content(book: &NoteBook, target: &Path) -> Result<()> {
         )))?;
         fs::File::create(target.join("content.md"))?;
         fs::File::create(target.join("unknown.txt"))?;
+        fs::File::create(target.join("content.sh"))?;
     }
     println!("created dir {}", target.display());
     for c in &book.contents {
         match c.cell_type.as_ref() {
             "code" => {
-                let mut handle =
-                    fs::File::options()
-                        .append(true)
-                        .create(true)
-                        .open(target.join(format!(
-                            "content{}",
-                            book.metadata.language_info.file_extension
-                        )))?;
+                let (mut handle, is_shell) = if is_shell_code_cell(&c.content) {
+                    (
+                        fs::File::options()
+                            .append(true)
+                            .create(true)
+                            .open(target.join("content.sh"))?,
+                        true,
+                    )
+                } else {
+                    (
+                        fs::File::options()
+                            .append(true)
+                            .create(true)
+                            .open(target.join(format!(
+                                "content{}",
+                                book.metadata.language_info.file_extension
+                            )))?,
+                        false,
+                    )
+                };
 
-                for line in &c.content {
-                    if book.metadata.language_info.name == "python" && is_printout(line) {
+                for line in &c.content[if is_shell { 1 } else { 0 }..] {
+                    if is_shell_code(line) {
+                        let mut shell_handle = fs::File::options()
+                            .append(true)
+                            .create(true)
+                            .open(target.join("content.sh"))?;
+                        let line = line.trim_start_matches('!').trim_start_matches('!');
+                        shell_handle.write_all(line.as_bytes())?;
+                        continue;
+                    }
+                    if book.metadata.language_info.name == "python"
+                        && is_printout(line)
+                        && !is_shell
+                    {
                         handle.write_all(format!("print(\"{0} = \", {0})\n", line).as_bytes())?;
                     } else {
                         handle.write_all(line.as_bytes())?;
