@@ -64,7 +64,7 @@ fn is_printout(line: &str) -> bool {
         return false;
     }
     for c in line.chars() {
-        if !c.is_alphabetic() {
+        if !c.is_alphabetic() && c != '_' {
             return false;
         }
     }
